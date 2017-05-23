@@ -4,7 +4,7 @@ import kit.{AABB, Circle2, Vec2}
 import org.lwjgl.glfw.GLFW
 import scanvas.{Color, Paint, Path}
 import scanvas.gpu.GLFWWindow
-
+import System.err
 import scala.collection.mutable
 
 /**
@@ -15,6 +15,8 @@ object hexworld {
     val window = new GLFWWindow(1024, 768, "hexworld")
 
     val screen = AABB(0, 0, window.width, window.height)
+    case class Avatar(var radius:Double, var angle:Double)
+    var avatar:Avatar = Avatar(50d,0d)
 
 
     val grid = mutable.Map(
@@ -26,8 +28,35 @@ object hexworld {
       (2,7)-> Color.White)
     var t = 0.0
 
-    case class Avatar(var radius:Double, var angle:Double)
-    var avatar:Avatar = Avatar(50d,0d)
+
+    def toggleTri(pos:(Int,Int)): Unit = {
+      if (grid.contains(pos))
+        grid -= pos
+      else
+        grid += (pos-> Color.White)
+    }
+
+    // geometry calcs
+    val radius = 12
+    val wiggle_mag = radius/Math.sqrt(15)
+    val x_period = 3*radius/2
+    val y_period = radius*Math.sqrt(3)/2
+
+    def indicesToCoords(x:Int,y:Int):(Double,Double)={
+      val wiggle_dir = if (math.abs((x+y)%2)==1) 1 else -1
+      val x_offset = x * x_period + wiggle_dir * wiggle_mag
+      val y_offset = y*y_period
+      return (x_offset,y_offset)
+    }
+
+    def closestToTriangleIndex(x:Double,y:Double): (Int,Int) = {
+      val dx:Double = x - screen.center.x.toDouble
+      val dy:Double = y - screen.center.y.toDouble - avatar.radius
+      System.err.println(dx)
+      System.err.println(dy)
+      return ((dx/x_period).toInt,(dy/y_period).toInt)
+    }
+
     val keysDown = mutable.Set.empty[Int]
     window.onKeyDown = (key: Int, scanCode: Int, mods: Int) => {
       keysDown += key
@@ -35,8 +64,9 @@ object hexworld {
     window.onKeyUp = (key: Int, scanCode: Int, mods: Int) => {
       keysDown -= key
     }
-
-
+    window.onMouseDown = (x:Double, y:Double, button:Int) => {
+      toggleTri(closestToTriangleIndex(x,y))
+    }
 
     while (!window.shouldClose) {
       if (keysDown contains GLFW.GLFW_KEY_LEFT) {
@@ -57,14 +87,9 @@ object hexworld {
       window.canvas.drawRect(-4, -8, 8, 16, Paint.blank.setColor(0xffff0000))
       window.canvas.translate(0, avatar.radius.toFloat)
       window.canvas.rotate(avatar.angle.toFloat)
-      val radius = 12
-      val wiggle_mag = radius/Math.sqrt(15)
-      val inter_col_dist=3*radius/2
-      val y_period = radius*Math.sqrt(3)/2
       for (((x,y),color)<-grid){
-        val (rotation,wiggle_dir) = if ((x+y)%2==1) (Math.PI,1) else (0d,-1)
-        val x_offset = x*inter_col_dist + wiggle_dir*wiggle_mag
-        val y_offset = y*y_period
+        val rotation = if (math.abs((x+y)%2)==1) Math.PI else 0d
+        val (x_offset,y_offset) = indicesToCoords(x,y)
         val offset = Vec2(x_offset,y_offset)
         val triangle = Circle2(offset, radius).toPolygon(3, startAngle = rotation)
         val path = Path.empty
