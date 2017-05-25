@@ -37,7 +37,7 @@ object hexworld {
     }
 
     // geometry calcs
-    val radius = 12
+    val radius = 24
     val wiggle_mag = radius/Math.sqrt(15)
     val x_period = 3*radius/2
     val y_period = radius*Math.sqrt(3)/2
@@ -49,12 +49,25 @@ object hexworld {
       return (x_offset,y_offset)
     }
 
+    def xform(v:Vec2): Vec2 ={
+      val avatarvec = Vec2(avatar.radius*math.sin(avatar.angle),avatar.radius*math.cos(avatar.angle))
+      val x_0 = v.x - screen.center.x.toDouble
+      val y_0 = v.y - screen.center.y.toDouble
+      val x_rot = x_0*math.cos(avatar.angle) + y_0*math.sin(avatar.angle) - avatarvec.x
+      val y_rot = y_0*math.cos(avatar.angle) - x_0*math.sin(avatar.angle) - avatarvec.y
+      System.err.print("=============================\n\n")
+      System.err.print("Raw x: " + v.x.toString() + "\n")
+      System.err.print("Raw y: " + v.y.toString() + "\n")
+      System.err.print("Avec2: " + avatarvec.toString() + "\n")
+      System.err.print("Out x: " + x_rot.toString() + "\n")
+      System.err.print("Out y: " + y_rot.toString() + "\n\n")
+      return Vec2(x_rot,y_rot)
+    }
+
     def closestToTriangleIndex(x:Double,y:Double): (Int,Int) = {
-      val dx:Double = x - screen.center.x.toDouble
-      val dy:Double = y - screen.center.y.toDouble - avatar.radius
-      System.err.println(dx)
-      System.err.println(dy)
-      return ((dx/x_period).toInt,(dy/y_period).toInt)
+      // get the window pixel coordinates translated into our rotated /translated game frame.
+      val outvec = xform(Vec2(x,y))
+      return ((outvec.x/x_period).toInt,(outvec.y/y_period).toInt)
     }
 
     val keysDown = mutable.Set.empty[Int]
