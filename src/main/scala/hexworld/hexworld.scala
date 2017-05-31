@@ -37,14 +37,14 @@ object hexworld {
     }
 
     // geometry calcs
-    val radius = 24
+    val radius = 10
     val wiggle_mag = radius/Math.sqrt(15)
     val x_period = 3*radius/2
     val y_period = radius*Math.sqrt(3)/2
 
     def indicesToCoords(x:Int,y:Int):(Double,Double)={
       val wiggle_dir = if (math.abs((x+y)%2)==1) 1 else -1
-      val x_offset = x * x_period + wiggle_dir * wiggle_mag
+      val x_offset = x * x_period + wiggle_dir * wiggle_mag - x_period / 2
       val y_offset = y*y_period
       return (x_offset,y_offset)
     }
@@ -56,18 +56,53 @@ object hexworld {
       val x_rot = x_0*math.cos(avatar.angle) + y_0*math.sin(avatar.angle) - avatarvec.x
       val y_rot = y_0*math.cos(avatar.angle) - x_0*math.sin(avatar.angle) - avatarvec.y
       System.err.print("=============================\n\n")
-      System.err.print("Raw x: " + v.x.toString() + "\n")
-      System.err.print("Raw y: " + v.y.toString() + "\n")
-      System.err.print("Avec2: " + avatarvec.toString() + "\n")
-      System.err.print("Out x: " + x_rot.toString() + "\n")
-      System.err.print("Out y: " + y_rot.toString() + "\n\n")
+//      System.err.print("Out x: " + x_rot.toString() + "\n")
+//      System.err.print("Out y: " + y_rot.toString() + "\n\n")
       return Vec2(x_rot,y_rot)
     }
 
     def closestToTriangleIndex(x:Double,y:Double): (Int,Int) = {
       // get the window pixel coordinates translated into our rotated /translated game frame.
-      val outvec = xform(Vec2(x,y))
-      return ((outvec.x/x_period).toInt,(outvec.y/y_period).toInt)
+      val clickpoint = xform(Vec2(x,y))
+      // figure out what column we're in
+
+      val x_val = if (clickpoint.x<0) {
+        (clickpoint.x / x_period)
+      } else {
+        ((clickpoint.x + x_period) / x_period)
+      }
+
+      val y_val = if (clickpoint.y<0) {
+        clickpoint.y / y_period
+      } else {
+        clickpoint.y / y_period
+      }
+
+
+      val x_column = x_val.toInt
+      val x_fraction = math.abs(x_val-x_column)
+
+      val y_fraction = math.abs(y_val - y_val.toInt)
+      val polarity = math.abs((x_val.toInt+y_val.toInt)%2)
+
+      val polcheck = if(x_val>0) {1} else {0}
+      val y_column_ind = if(polarity==polcheck) {
+        if (y_fraction > x_fraction) {1} else {0}
+      } else {
+        if (y_fraction > 1 - x_fraction) {1} else {0}
+      }
+
+      val y_row_options = List(y_val.toInt,y_val.toInt + y_val.signum)
+
+
+      System.err.println("xval : " + x_val.toString())
+      System.err.println("yval : " + y_val.toString())
+      System.err.println("pol  : " + polarity.toString())
+      System.err.println("xfrac: " + x_fraction.toString())
+      System.err.println("yfrac: " + y_fraction.toString())
+      System.err.println("y_row_opts : " + y_row_options.toString())
+
+      return (x_column,y_row_options(y_column_ind))
     }
 
     val keysDown = mutable.Set.empty[Int]
