@@ -15,7 +15,9 @@ object hexworld {
     val window = new GLFWWindow(1024, 768, "hexworld")
 
     val screen = AABB(0, 0, window.width, window.height)
-    case class Avatar(var radius:Double, var angle:Double)
+    case class Avatar(var radius:Double, var angle:Double) {
+      var inventory = 100
+    }
     var avatar:Avatar = Avatar(50d,0d)
 
 
@@ -29,11 +31,54 @@ object hexworld {
     var t = 0.0
 
 
-    def toggleTri(pos:(Int,Int)): Unit = {
+    def adjacent(pos:(Int,Int)): List[(Int,Int)] = {
+      val xp = pos._1
+      val yp = pos._2
+      val polarity = math.abs(xp + yp)%2
+      val checkval = if(xp<0) {0} else {1}
+      if (polarity==checkval) {
+        return List((xp,yp+1),(xp,yp-1),(xp+xp.signum,yp))
+      } else {
+        return List((xp,yp+1),(xp,yp-1),(xp-xp.signum,yp))
+      }
+    }
+
+    def toggle(pos:(Int,Int)): Unit = {
+      val depth = 5
       if (grid.contains(pos))
-        grid -= pos
+        mine(pos,depth,OFF)
       else
-        grid += (pos-> Color.White)
+        mine(pos,depth,ON)
+    }
+
+    def mine(pos:(Int,Int),depth:Int, state:TriState):Unit = {
+      if (depth==0) return {}
+      setTri(pos,state)
+      for (p<-adjacent(pos)) {
+        mine(p,depth-1,state)
+      }
+      return {}
+    }
+
+    trait TriState {}
+    case object ON extends TriState
+    case object OFF extends TriState
+
+    def setTri(pos:(Int,Int),state:TriState): Unit = {
+      state match {
+        case ON => {
+          if (!grid.contains(pos) & avatar.inventory > 0) {
+            grid += (pos -> Color.White)
+            avatar.inventory -= 1
+          }
+        }
+        case OFF => {
+          if (grid.contains(pos)) {
+            grid -= pos
+          avatar.inventory += 1
+          }
+        }
+      }
     }
 
     // geometry calcs
@@ -55,7 +100,7 @@ object hexworld {
       val y_0 = v.y - screen.center.y.toDouble
       val x_rot = x_0*math.cos(avatar.angle) + y_0*math.sin(avatar.angle) - avatarvec.x
       val y_rot = y_0*math.cos(avatar.angle) - x_0*math.sin(avatar.angle) - avatarvec.y
-      System.err.print("=============================\n\n")
+//      System.err.print("=============================\n\n")
 //      System.err.print("Out x: " + x_rot.toString() + "\n")
 //      System.err.print("Out y: " + y_rot.toString() + "\n\n")
       return Vec2(x_rot,y_rot)
@@ -93,14 +138,14 @@ object hexworld {
       }
 
       val y_row_options = List(y_val.toInt,y_val.toInt + y_val.signum)
-
-
-      System.err.println("xval : " + x_val.toString())
-      System.err.println("yval : " + y_val.toString())
-      System.err.println("pol  : " + polarity.toString())
-      System.err.println("xfrac: " + x_fraction.toString())
-      System.err.println("yfrac: " + y_fraction.toString())
-      System.err.println("y_row_opts : " + y_row_options.toString())
+//
+//
+//      System.err.println("xval : " + x_val.toString())
+//      System.err.println("yval : " + y_val.toString())
+//      System.err.println("pol  : " + polarity.toString())
+//      System.err.println("xfrac: " + x_fraction.toString())
+//      System.err.println("yfrac: " + y_fraction.toString())
+//      System.err.println("y_row_opts : " + y_row_options.toString())
 
       return (x_column,y_row_options(y_column_ind))
     }
@@ -113,7 +158,7 @@ object hexworld {
       keysDown -= key
     }
     window.onMouseDown = (x:Double, y:Double, button:Int) => {
-      toggleTri(closestToTriangleIndex(x,y))
+      toggle(closestToTriangleIndex(x,y))
     }
 
     while (!window.shouldClose) {
