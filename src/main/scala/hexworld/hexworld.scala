@@ -1,10 +1,11 @@
 package hexworld
 
-import kit.{AABB, Circle2, Vec2}
+import kit._
+import org.bytedeco.javacpp.liquidfun._
 import org.lwjgl.glfw.GLFW
-import scanvas.{Color, Paint, Path}
 import scanvas.gpu.GLFWWindow
-import System.err
+import scanvas.{Color, Paint, Path}
+
 import scala.collection.mutable
 
 /**
@@ -15,9 +16,25 @@ object hexworld {
     val window = new GLFWWindow(1024, 768, "hexworld")
 
     val screen = AABB(0, 0, window.width, window.height)
-    case class Avatar(var radius:Double, var angle:Double)
-    var avatar:Avatar = Avatar(50d,0d)
 
+
+    val world = new b2World(new b2Vec2(0, 0))
+    val staticBodyDef = new b2BodyDef()
+    staticBodyDef.`type`(b2_staticBody)
+    staticBodyDef._position(new b2Vec2(0, 0))
+    val staticBody = world.CreateBody(staticBodyDef)
+
+    val avatarBodyDef = new b2BodyDef()
+    avatarBodyDef.`type`(b2_dynamicBody)
+    avatarBodyDef._position(new b2Vec2(0, 20))
+    avatarBodyDef.fixedRotation(true)
+    val avatarBody = world.CreateBody(avatarBodyDef)
+    val avatarShape = new b2PolygonShape()
+    avatarShape.SetAsBox(5, 10)
+    val avatarFixtureDef = new b2FixtureDef()
+    avatarFixtureDef.density(0.1f)
+    avatarFixtureDef.shape(avatarShape)
+    avatarBody.CreateFixture(avatarFixtureDef)
 
     val grid = mutable.Map(
       (0,0)-> Color.White,
@@ -25,16 +42,9 @@ object hexworld {
       (1,1)-> Color.White,
       (1,0)-> Color.White,
       (3,2)-> Color.White,
+      (10,5)-> Color.White,
       (2,7)-> Color.White)
     var t = 0.0
-
-
-    def toggleTri(pos:(Int,Int)): Unit = {
-      if (grid.contains(pos))
-        grid -= pos
-      else
-        grid += (pos-> Color.White)
-    }
 
     // geometry calcs
     val radius = 10
@@ -49,21 +59,52 @@ object hexworld {
       return (x_offset,y_offset)
     }
 
-    def xform(v:Vec2): Vec2 ={
-      val avatarvec = Vec2(avatar.radius*math.sin(avatar.angle),avatar.radius*math.cos(avatar.angle))
-      val x_0 = v.x - screen.center.x.toDouble
-      val y_0 = v.y - screen.center.y.toDouble
-      val x_rot = x_0*math.cos(avatar.angle) + y_0*math.sin(avatar.angle) - avatarvec.x
-      val y_rot = y_0*math.cos(avatar.angle) - x_0*math.sin(avatar.angle) - avatarvec.y
-      System.err.print("=============================\n\n")
-//      System.err.print("Out x: " + x_rot.toString() + "\n")
-//      System.err.print("Out y: " + y_rot.toString() + "\n\n")
-      return Vec2(x_rot,y_rot)
+    def triangleAtCoords(x: Int, y: Int): Polygon = {
+      val rotation = if (math.abs((x+y)%2)==1) Math.PI else 0d
+      val (x_offset,y_offset) = indicesToCoords(x,y)
+      val offset = Vec2(x_offset,y_offset)
+      Circle2(offset, radius).toPolygon(3, startAngle = rotation)
+    }
+
+    def addTriangleToWorld(pos: (Int, Int)): Unit = {
+      val triDef = new b2FixtureDef()
+      val triShape = new b2PolygonShape()
+      val points = triangleAtCoords(pos._1, pos._2).points
+      val verts = new b2Vec2(points.size)
+      for ((p, i) <- points.zipWithIndex) {
+        verts.position(i).x(p.x.toFloat).y(p.y.toFloat)
+      }
+      triShape.Set(verts.position(0), points.size)
+      triDef.shape(triShape)
+      staticBody.CreateFixture(triDef)
+    }
+
+    grid.keys foreach addTriangleToWorld
+
+    def toggleTri(pos:(Int,Int)): Unit = {
+      if (grid.contains(pos))
+        grid -= pos
+        // TODO: remove from b2World
+      else {
+        grid += (pos -> Color.White)
+        addTriangleToWorld(pos)
+      }
+    }
+
+    /** Matrix which converts screen coordinates to world coordinates. */
+    def screenToWorld: Mat33 = {
+      val avatarPos = Vec2(avatarBody.GetPositionX(), avatarBody.GetPositionY())
+      // (3) ...then put the center of the world in the middle of the screen.
+      Mat33.translate(screen.center) *
+        // (2) ...then rotate the world around them so their feet are down...
+        Mat33.rotate(avatarBody.GetAngle()) *
+        // (1) First put the avatar at (0, 0)...
+        Mat33.translate(-avatarPos)
     }
 
     def closestToTriangleIndex(x:Double,y:Double): (Int,Int) = {
       // get the window pixel coordinates translated into our rotated /translated game frame.
-      val clickpoint = xform(Vec2(x,y))
+      val clickpoint = screenToWorld * Vec2(x,y)
       // figure out what column we're in
 
       val x_val = if (clickpoint.x<0) {
@@ -116,30 +157,56 @@ object hexworld {
       toggleTri(closestToTriangleIndex(x,y))
     }
 
+
     while (!window.shouldClose) {
-      if (keysDown contains GLFW.GLFW_KEY_LEFT) {
-        avatar.angle += 30d * 1/60 / (avatar.radius)
-      }
-      if (keysDown contains GLFW.GLFW_KEY_RIGHT) {
-        avatar.angle -= 30d * 1/60 / (avatar.radius)
-      }
+
+      //////// Physics /////////
+      world.Step(1/30f, 5, 9)
+      val avatarPos = Vec2(avatarBody.GetPositionX(), avatarBody.GetPositionY())
+      val planetCenter = Vec2(0, 0)
+      val angle = if ((planetCenter -> avatarPos).lengthSquared > 1) (planetCenter -> avatarPos).toAngle else 0
       if (keysDown contains GLFW.GLFW_KEY_UP) {
-        avatar.radius += 25 *1/60.0
+        val vec = Vec2.forAngle(angle) * 100
+        avatarBody.ApplyForceToCenter(new b2Vec2(vec.x.toFloat, vec.y.toFloat), true)
       }
       if (keysDown contains GLFW.GLFW_KEY_DOWN) {
-        avatar.radius -= 25 *1/60.0
+        val vec = Vec2.forAngle(angle) * -100
+        avatarBody.ApplyForceToCenter(new b2Vec2(vec.x.toFloat, vec.y.toFloat), true)
       }
+      if (keysDown contains GLFW.GLFW_KEY_RIGHT) {
+        val vec = Vec2.forAngle(angle + Math.PI/2) * 100
+        avatarBody.ApplyForceToCenter(new b2Vec2(vec.x.toFloat, vec.y.toFloat), true)
+      }
+      if (keysDown contains GLFW.GLFW_KEY_LEFT) {
+        val vec = Vec2.forAngle(angle - Math.PI/2) * 100
+        avatarBody.ApplyForceToCenter(new b2Vec2(vec.x.toFloat, vec.y.toFloat), true)
+      }
+      // Orient the player's feet towards (0,0) (or head, not sure which because symmetry)
+      avatarBody.SetTransform(avatarBody.GetPosition(), (angle + Math.PI/2).toFloat)
+      val gravityDir = avatarPos -> planetCenter
+      if (gravityDir.lengthSquared > 1) { // if they're really close to (0,0) it isn't clear where "down" is
+        val gravity = gravityDir.normed * 10
+        avatarBody.ApplyForceToCenter(new b2Vec2(gravity.x.toFloat, gravity.y.toFloat), true)
+      }
+
+      //////// Graphics /////////
       window.canvas.clear(Color.Black)
+      val avatarAngle = avatarBody.GetAngle()
+      val avatarX = avatarBody.GetPositionX()
+      val avatarY = avatarBody.GetPositionY()
       window.canvas.save()
-      window.canvas.translate(screen.center.x.toFloat, screen.center.y.toFloat)
-      window.canvas.drawRect(-4, -8, 8, 16, Paint.blank.setColor(0xffff0000))
-      window.canvas.translate(0, avatar.radius.toFloat)
-      window.canvas.rotate(avatar.angle.toFloat)
+      val s2w = screenToWorld
+      window.canvas.concat(
+        s2w.a.toFloat, s2w.b.toFloat, s2w.c.toFloat,
+        s2w.d.toFloat, s2w.e.toFloat, s2w.f.toFloat
+      )
+      window.canvas.save()
+      window.canvas.translate(avatarX, avatarY)
+      window.canvas.rotate(avatarAngle)
+      window.canvas.drawRect(-5f, -10, 10, 20, Paint.blank.setColor(0xffff0000))
+      window.canvas.restore()
       for (((x,y),color)<-grid){
-        val rotation = if (math.abs((x+y)%2)==1) Math.PI else 0d
-        val (x_offset,y_offset) = indicesToCoords(x,y)
-        val offset = Vec2(x_offset,y_offset)
-        val triangle = Circle2(offset, radius).toPolygon(3, startAngle = rotation)
+        val triangle = triangleAtCoords(x, y)
         val path = Path.empty
         path.moveTo(triangle.points(0).x.toFloat, triangle.points(0).y.toFloat)
         for (point <- triangle.points.drop(1))
