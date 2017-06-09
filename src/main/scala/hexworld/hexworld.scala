@@ -165,27 +165,28 @@ object hexworld {
       val avatarPos = Vec2(avatarBody.GetPositionX(), avatarBody.GetPositionY())
       val planetCenter = Vec2(0, 0)
       val angle = if ((planetCenter -> avatarPos).lengthSquared > 1) (planetCenter -> avatarPos).toAngle else 0
+      val power = 200
       if (keysDown contains GLFW.GLFW_KEY_UP) {
-        val vec = Vec2.forAngle(angle) * 100
+        val vec = Vec2.forAngle(angle) * power
         avatarBody.ApplyForceToCenter(new b2Vec2(vec.x.toFloat, vec.y.toFloat), true)
       }
       if (keysDown contains GLFW.GLFW_KEY_DOWN) {
-        val vec = Vec2.forAngle(angle) * -100
+        val vec = Vec2.forAngle(angle) * -power
         avatarBody.ApplyForceToCenter(new b2Vec2(vec.x.toFloat, vec.y.toFloat), true)
       }
       if (keysDown contains GLFW.GLFW_KEY_RIGHT) {
-        val vec = Vec2.forAngle(angle + Math.PI/2) * 100
+        val vec = Vec2.forAngle(angle + Math.PI/2) * power
         avatarBody.ApplyForceToCenter(new b2Vec2(vec.x.toFloat, vec.y.toFloat), true)
       }
       if (keysDown contains GLFW.GLFW_KEY_LEFT) {
-        val vec = Vec2.forAngle(angle - Math.PI/2) * 100
+        val vec = Vec2.forAngle(angle - Math.PI/2) * power
         avatarBody.ApplyForceToCenter(new b2Vec2(vec.x.toFloat, vec.y.toFloat), true)
       }
       // Orient the player's feet towards (0,0) (or head, not sure which because symmetry)
       avatarBody.SetTransform(avatarBody.GetPosition(), (angle + Math.PI/2).toFloat)
       val gravityDir = avatarPos -> planetCenter
       if (gravityDir.lengthSquared > 1) { // if they're really close to (0,0) it isn't clear where "down" is
-        val gravity = gravityDir.normed * 10
+        val gravity = gravityDir.normed * 100
         avatarBody.ApplyForceToCenter(new b2Vec2(gravity.x.toFloat, gravity.y.toFloat), true)
       }
 
