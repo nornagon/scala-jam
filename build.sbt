@@ -7,10 +7,8 @@ lazy val root = (project in file(".")).
       scalaVersion := "2.12.2",
       version      := "0.1.0-SNAPSHOT"
     )),
-    name := "Hello",
+    name := "Scala Jam",
     resolvers += Resolver.mavenLocal,
-    libraryDependencies += "net.nornagon" %% "kit" % "0.1.0-SNAPSHOT",    
-    libraryDependencies += "org.processing" % "core" % "3.2.3",
     libraryDependencies += "org.lwjgl" % "lwjgl-opengl" % "3.1.1",
     libraryDependencies += "org.lwjgl" % "lwjgl-opengl" % "3.1.1" classifier "natives-macos",
     libraryDependencies += "org.lwjgl" % "lwjgl-glfw" % "3.1.1",
@@ -23,7 +21,8 @@ lazy val root = (project in file(".")).
     libraryDependencies += "org.bytedeco.javacpp-presets" % "liquidfun" % "20150401-0708ce1-1.3.3-SNAPSHOT" classifier "linux-x86_64",
     libraryDependencies ++= Seq(
       "net.nornagon" %% "scanvas-core" % "0.1.0-SNAPSHOT",
-      "net.nornagon" %% "scanvas-gpu" % "0.1.0-SNAPSHOT"
+      "net.nornagon" %% "scanvas-gpu" % "0.1.0-SNAPSHOT",
+      "net.nornagon" %% "kit" % "0.1.0-SNAPSHOT"
     ),
     fork in run := true
 )
