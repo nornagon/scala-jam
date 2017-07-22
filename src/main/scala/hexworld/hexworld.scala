@@ -158,7 +158,7 @@ object hexworld {
     }
 
     /** Matrix which converts screen coordinates to world coordinates. */
-    def screenToWorld: Mat33 = {
+    def worldToScreen: Mat33 = {
       val avatarPos = Vec2(avatarBody.GetPositionX(), avatarBody.GetPositionY())
       // (3) ...then put the center of the world in the middle of the screen.
       Mat33.translate(screen.center) *
@@ -166,6 +166,16 @@ object hexworld {
         Mat33.rotate(avatarBody.GetAngle()) *
         // (1) First put the avatar at (0, 0)...
         Mat33.translate(-avatarPos)
+    }
+
+    def screenToWorld: Mat33 = {
+      val avatarPos = Vec2(avatarBody.GetPositionX(), avatarBody.GetPositionY())
+      // (3) ...then put the avatar in the middle of the screen.
+      Mat33.translate(avatarPos) *
+      // (2) ...then rotate the world around them so their feet are down...
+        Mat33.rotate(-avatarBody.GetAngle()) *
+        // (1) First put the avatar's position at (0, 0), the top left corner...
+        Mat33.translate(Vec2(0,0)-screen.center)
     }
 
     def closestToTriangleIndex(x:Double,y:Double): (Int,Int) = {
@@ -200,16 +210,25 @@ object hexworld {
       }
 
       val y_row_options = List(y_val.toInt,y_val.toInt + y_val.signum)
-//
-//
-//      System.err.println("xval : " + x_val.toString())
-//      System.err.println("yval : " + y_val.toString())
+      val y_row = y_row_options(y_column_ind)
+      //
+      val avatarPos = Vec2(avatarBody.GetPositionX(), avatarBody.GetPositionY())
+
+      System.err.println("raw x : " + x.toString())
+      System.err.println("raw y : " + y.toString())
+      System.err.println("world x : " + clickpoint.x.toString())
+      System.err.println("world y : " + clickpoint.y.toString())
+      System.err.println("screen.center x : " + screen.center.x.toString())
+      System.err.println("screen.center y : " + screen.center.y.toString())
+
+      System.err.println("xcol : " + x_column.toString())
+      System.err.println("yrow : " + y_row.toString())
 //      System.err.println("pol  : " + polarity.toString())
 //      System.err.println("xfrac: " + x_fraction.toString())
 //      System.err.println("yfrac: " + y_fraction.toString())
 //      System.err.println("y_row_opts : " + y_row_options.toString())
 
-      return (x_column,y_row_options(y_column_ind))
+      return (x_column,y_row)
     }
 
     val keysDown = mutable.Set.empty[Int]
@@ -231,7 +250,7 @@ object hexworld {
       val avatarPos = Vec2(avatarBody.GetPositionX(), avatarBody.GetPositionY())
       val planetCenter = Vec2(0, 0)
       val angle = if ((planetCenter -> avatarPos).lengthSquared > 1) (planetCenter -> avatarPos).toAngle else 0
-      val power = 200
+      val power = 2000
       if (keysDown contains GLFW.GLFW_KEY_UP) {
         val vec = Vec2.forAngle(angle) * power
         avatarBody.ApplyForceToCenter(new b2Vec2(vec.x.toFloat, vec.y.toFloat), true)
@@ -262,7 +281,7 @@ object hexworld {
       val avatarX = avatarBody.GetPositionX()
       val avatarY = avatarBody.GetPositionY()
       window.canvas.save()
-      val s2w = screenToWorld
+      val s2w = worldToScreen
       window.canvas.concat(
         s2w.a.toFloat, s2w.b.toFloat, s2w.c.toFloat,
         s2w.d.toFloat, s2w.e.toFloat, s2w.f.toFloat
